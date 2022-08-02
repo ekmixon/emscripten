@@ -76,7 +76,7 @@ def CloneWiki():
         pass
 
     # Clone
-    git_clone_command = 'git clone %s %s' % (wiki_repo, wiki_checkout)
+    git_clone_command = f'git clone {wiki_repo} {wiki_checkout}'
     print(git_clone_command)
     os.system(git_clone_command)
 
@@ -114,9 +114,7 @@ def ConvertFilesToRst():
         title += ' (wiki-import)'
         length = len(title)
         # print length
-        headerbar = ''
-        for number in range(length):
-            headerbar += '='
+        headerbar = ''.join('=' for _ in range(length))
         page_reference = filenamestripped
         page_reference_link_text = '.. _%s:\n\n' % page_reference
         titlebar = page_reference_link_text + headerbar + '\n' + title + '\n' + headerbar + '\n'
@@ -136,7 +134,7 @@ def ConvertFilesToRst():
             outfile.write(textinfile)
 
         # write the index
-        with open(output_dir + 'index.rst', 'w') as outfile:
+        with open(f'{output_dir}index.rst', 'w') as outfile:
             outfile.write(indexfiletext)
 
 
@@ -155,10 +153,11 @@ def FixupConvertedRstFiles():
             linktext = linktext.replace(' ', '-')
             # linktext = ':doc:`%s`' % linktext
             # use reference for linking as allows pages to be moved around
-            linktext = ':ref:`%s`' % linktext
+            linktext = f':ref:`{linktext}`'
             # print 'linkdoc: %s' % linktext
             logfile.write('linkdoc: %s \n' % linktext)
             return linktext
+
         # print 'fixing wiki links'
         return re.sub(r'\[\[(.+?)\]\]', fixwikilinks, aOldText)
 
@@ -209,14 +208,14 @@ def main():
     parser.add_option("-c", "--clonewiki", action="store_true", default=False, dest="clonewiki", help="Clean and clone the latest wiki")
     options, args = parser.parse_args()
 
-    print('Clone wiki: %s' % options.clonewiki)
+    print(f'Clone wiki: {options.clonewiki}')
     if options.clonewiki:
         CloneWiki()
         # input = raw_input('CHECK ALL files were cloned! (look for "error: unable to create file" )\n')
 
     ConvertFilesToRst()
     FixupConvertedRstFiles()
-    print('See LOG for details: %s ' % logfilename)
+    print(f'See LOG for details: {logfilename} ')
 
 
 if __name__ == '__main__':

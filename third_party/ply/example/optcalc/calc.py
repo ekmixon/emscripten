@@ -33,7 +33,7 @@ def t_NUMBER(t):
     try:
         t.value = int(t.value)
     except ValueError:
-        print("Integer value too large %s" % t.value)
+        print(f"Integer value too large {t.value}")
         t.value = 0
     return t
 

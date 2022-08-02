@@ -7,6 +7,7 @@
 """Usage: creduce ./creduce_tester.py newfail1.c
 """
 
+
 import os
 import sys
 import subprocess
@@ -22,7 +23,7 @@ EMCC_ARGS = ['-O2']
 
 filename = sys.argv[1]
 obj_filename = shared.unsuffixed(filename)
-js_filename = obj_filename + '.js'
+js_filename = f'{obj_filename}.js'
 print('testing file', filename)
 
 try:

@@ -22,7 +22,7 @@ api_reference_directory = './docs/api_reference/'
 # if you change here, change everywhere.
 api_item_filename = 'api_items.py'
 
-api_reference_items = dict()
+api_reference_items = {}
 
 
 def parseFiles():
@@ -52,13 +52,14 @@ def parseFiles():
         # print data_type
         # print api_item
 
-        api_reference_items[api_item] = ':%s:%s:`%s`' % (lang, data_type, api_item)
+        api_reference_items[api_item] = f':{lang}:{data_type}:`{api_item}`'
         # Add additional index for functions declared as func() rather than just func
         if data_type == 'func':
-            api_item_index = api_item + '()'
-            api_reference_items[api_item_index] = ':%s:%s:`%s`' % (lang, data_type, api_item)
+            api_item_index = f'{api_item}()'
+            api_reference_items[api_item_index] = f':{lang}:{data_type}:`{api_item}`'
 
-        # print api_reference_items[api_item]
+            # print api_reference_items[api_item]
+
 
     for file in os.listdir(api_reference_directory):
         if file.endswith(".rst"):
@@ -78,8 +79,7 @@ def exportItems():
         # write function lead in
         infile.write("# Auto-generated file (see get_api_items.py)\n\ndef get_mapped_items():\n    mapped_wiki_inline_code = dict()\n")
 
-        items = list((key, value) for key, value in api_reference_items.items())
-        items.sort()
+        items = sorted(api_reference_items.items())
         for key, value in items:
             # Write out each API item to add
             infile.write("    mapped_wiki_inline_code['%s'] = '%s'\n" % (key, value))

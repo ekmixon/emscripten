@@ -119,9 +119,7 @@ t_ELLIPSIS         = r'\.\.\.'
 
 # Identifiers and reserved words
 
-reserved_map = { }
-for r in reserved:
-    reserved_map[r.lower()] = r
+reserved_map = {r.lower(): r for r in reserved}
 
 def t_ID(t):
     r'[A-Za-z_][\w_]*'
@@ -151,7 +149,7 @@ def t_preprocessor(t):
     t.lexer.lineno += 1
     
 def t_error(t):
-    print("Illegal character %s" % repr(t.value[0]))
+    print(f"Illegal character {repr(t.value[0])}")
     t.lexer.skip(1)
     
 lexer = lex.lex(optimize=1)

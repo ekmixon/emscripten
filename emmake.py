@@ -46,11 +46,9 @@ variables so that emcc etc. are used. Typical usage:
   env = building.get_building_env()
 
   # On Windows prefer building with mingw32-make instead of make, if it exists.
-  if utils.WINDOWS:
-    if args[0] == 'make':
-      mingw32_make = utils.which('mingw32-make')
-      if mingw32_make:
-        args[0] = mingw32_make
+  if utils.WINDOWS and args[0] == 'make':
+    if mingw32_make := utils.which('mingw32-make'):
+      args[0] = mingw32_make
 
   # On Windows, run the execution through shell to get PATH expansion and
   # executable extension lookup, e.g. 'sdl2-config' will match with

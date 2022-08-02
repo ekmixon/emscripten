@@ -24,7 +24,7 @@ def which(program):
 
 def test(var):
   val = os.getenv(var)
-  print('%s=%s' % (var, val))
+  print(f'{var}={val}')
   print(which(val))
 
 

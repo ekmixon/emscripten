@@ -10,10 +10,10 @@ def listen():
   while True:
     conn, address = s.accept()
     while True:
-      data = conn.recv(2048)
-      if not data:
+      if data := conn.recv(2048):
+        conn.sendall(data)
+      else:
         break
-      conn.sendall(data)
     conn.close()
 
 

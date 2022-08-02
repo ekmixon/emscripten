@@ -27,7 +27,7 @@ def parseInt(literal):
         sign = 1
 
     if string[0] == '0' and len(string) > 1:
-        if string[1] == 'x' or string[1] == 'X':
+        if string[1] in ['x', 'X']:
             base = 16
             string = string[2:]
         else:
@@ -41,9 +41,7 @@ def parseInt(literal):
 
 # Magic for creating enums
 def M_add_class_attribs(name, base, attribs, start):
-    dict_ = dict()
-    for v, k in enumerate(attribs):
-        dict_[k] = start + v
+    dict_ = {k: start + v for v, k in enumerate(attribs)}
     assert 'length' not in dict_
     dict_['length'] = start + len(attribs)
     return type(name, (base,), dict_)
@@ -53,12 +51,13 @@ def enum(*names, **kw):
         base = kw['base'].__class__
         start = base.length
     else:
-        assert len(kw) == 0
+        assert not kw
         base = object
         start = 0
     Foo = M_add_class_attribs("Foo", base, names, start)
     def __setattr__(self, name, value):  # this makes it read-only
         raise NotImplementedError
+
     Foo.__setattr__ = __setattr__
     return Foo()
 
@@ -80,7 +79,7 @@ class Location(object):
         self._lineno = lineno
         self._lexpos = lexpos
         self._lexdata = lexer.lexdata
-        self._file = filename if filename else "<unknown>"
+        self._file = filename or "<unknown>"
 
     def __eq__(self, other):
         return self._lexpos == other._lexpos and \
@@ -106,7 +105,7 @@ class Location(object):
 
     def get(self):
         self.resolve()
-        return "%s line %s:%s" % (self._file, self._lineno, self._colno)
+        return f"{self._file} line {self._lineno}:{self._colno}"
 
     def _pointerline(self):
         return " " * self._colno + "^"
@@ -142,7 +141,7 @@ class BuiltinLocation(object):
 class IDLObject(object):
     def __init__(self, location):
         self.location = location
-        self.userData = dict()
+        self.userData = {}
 
     def filename(self):
         return self.location.filename()
@@ -192,7 +191,7 @@ class IDLObject(object):
         # NB: We can't use visited=set() above because the default value is
         # evaluated when the def statement is evaluated, not when the function
         # is executed, so there would be one set for all invocations.
-        if visited == None:
+        if visited is None:
             visited = set()
 
         if self in visited:
@@ -226,9 +225,7 @@ class IDLScope(IDLObject):
         return self.QName()
 
     def QName(self):
-        if self._name:
-            return self._name.QName() + "::"
-        return "::"
+        return f"{self._name.QName()}::" if self._name else "::"
 
     def ensureUnique(self, identifier, object):
         """
@@ -343,7 +340,7 @@ class IDLUnresolvedIdentifier(IDLObject):
         return self.QName()
 
     def QName(self):
-        return "<unresolved scope>::" + self.name
+        return f"<unresolved scope>::{self.name}"
 
     def resolve(self, scope, object):
         assert isinstance(scope, IDLScope)
@@ -385,8 +382,8 @@ class IDLObjectWithIdentifier(IDLObject):
         A helper function to deal with TreatNullAs.  Returns the list
         of attrs it didn't handle itself.
         """
-        assert isinstance(self, IDLArgument) or isinstance(self, IDLAttribute)
-        unhandledAttrs = list()
+        assert isinstance(self, (IDLArgument, IDLAttribute))
+        unhandledAttrs = []
         for attr in attrs:
             if not attr.hasValue():
                 unhandledAttrs.append(attr)
@@ -490,14 +487,14 @@ class IDLInterface(IDLObjectWithScope):
         # namedConstructors needs deterministic ordering because bindings code
         # outputs the constructs in the order that namedConstructors enumerates
         # them.
-        self.namedConstructors = list()
+        self.namedConstructors = []
         self.implementedInterfaces = set()
         self._consequential = False
         self._isPartial = True
         # self.interfacesBasedOnSelf is the set of interfaces that inherit from
         # self or have self as a consequential interface, including self itself.
         # Used for distinguishability checking.
-        self.interfacesBasedOnSelf = set([self])
+        self.interfacesBasedOnSelf = {self}
         # self.interfacesImplementingSelf is the set of interfaces that directly
         # have self as a consequential interface
         self.interfacesImplementingSelf = set()

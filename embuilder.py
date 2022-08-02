@@ -134,7 +134,7 @@ def main():
   args = parser.parse_args()
 
   if args.operation != 'build':
-    shared.exit_with_error('unfamiliar operation: ' + args.operation)
+    shared.exit_with_error(f'unfamiliar operation: {args.operation}')
 
   # process flags
 
@@ -175,12 +175,12 @@ def main():
     # "Cannot recognize the target platform; are you targeting an unsupported platform?"
     skip_tasks = ['cocos2d']
     tasks = [x for x in tasks if x not in skip_tasks]
-    print('Building targets: %s' % ' '.join(tasks))
+    print(f"Building targets: {' '.join(tasks)}")
   for what in tasks:
     for old, new in legacy_prefixes.items():
       if what.startswith(old):
         what = what.replace(old, new)
-    logger.info('building and verifying ' + what)
+    logger.info(f'building and verifying {what}')
     start_time = time.time()
     if what in SYSTEM_LIBRARIES:
       library = SYSTEM_LIBRARIES[what]
@@ -198,7 +198,7 @@ def main():
     elif what in PORTS:
       build_port(what)
     else:
-      logger.error('unfamiliar build target: ' + what)
+      logger.error(f'unfamiliar build target: {what}')
       return 1
 
     time_taken = time.time() - start_time

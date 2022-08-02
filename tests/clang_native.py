@@ -39,7 +39,7 @@ def get_clang_native_env():
 
   if MACOS:
     path = run_process(['xcrun', '--show-sdk-path'], stdout=PIPE).stdout.strip()
-    logger.debug('Using MacOS SDKROOT: ' + path)
+    logger.debug(f'Using MacOS SDKROOT: {path}')
     env['SDKROOT'] = path
   elif WINDOWS:
     # If already running in Visual Studio Command Prompt manually, no need to
@@ -98,7 +98,7 @@ def get_clang_native_env():
       if key not in env or len(env[key].strip()) == 0:
         env[key] = item
       else:
-        env[key] = env[key] + ';' + item
+        env[key] = f'{env[key]};{item}'
 
     append_item('INCLUDE', os.path.join(env['VCINSTALLDIR'], 'INCLUDE'))
     append_item('INCLUDE', os.path.join(env['VCINSTALLDIR'], 'ATLMFC', 'INCLUDE'))

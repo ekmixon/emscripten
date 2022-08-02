@@ -164,9 +164,10 @@ class Preprocessor(object):
         tokens = []
         self.lexer.input(text)
         while True:
-            tok = self.lexer.token()
-            if not tok: break
-            tokens.append(tok)
+            if tok := self.lexer.token():
+                tokens.append(tok)
+            else:
+                break
         return tokens
 
     # ---------------------------------------------------------------------
@@ -217,11 +218,7 @@ class Preprocessor(object):
         # Determine the token type for whitespace--if any
         self.lexer.input("  ")
         tok = self.lexer.token()
-        if not tok or tok.value != "  ":
-            self.t_SPACE = None
-        else:
-            self.t_SPACE = tok.type
-
+        self.t_SPACE = None if not tok or tok.value != "  " else tok.type
         # Determine the token type for newlines
         self.lexer.input("\n")
         tok = self.lexer.token()
@@ -326,7 +323,7 @@ class Preprocessor(object):
         current_arg = []
         nesting = 1
         tokenlen = len(tokenlist)
-    
+
         # Search for the opening '('.
         i = 0
         while (i < tokenlen) and (tokenlist[i].type in self.t_WS):
@@ -360,7 +357,7 @@ class Preprocessor(object):
             else:
                 current_arg.append(t)
             i += 1
-    
+
         # Missing end argument
         self.error(self.source,tokenlist[-1].lineno,"Missing ')' in macro arguments")
         return 0, [],[]
@@ -402,8 +399,8 @@ class Preprocessor(object):
                     macro.patch.append(('e',argnum,i))
             elif macro.value[i].value == '##':
                 if macro.variadic and (i > 0) and (macro.value[i-1].value == ',') and \
-                        ((i+1) < len(macro.value)) and (macro.value[i+1].type == self.t_ID) and \
-                        (macro.value[i+1].value == macro.vararg):
+                            ((i+1) < len(macro.value)) and (macro.value[i+1].type == self.t_ID) and \
+                            (macro.value[i+1].value == macro.vararg):
                     macro.var_comma_patch.append(i-1)
             i += 1
         macro.patch.sort(key=lambda x: x[2],reverse=True)
@@ -476,7 +473,7 @@ class Preprocessor(object):
                 if t.value in self.macros and t.value not in expanded:
                     # Yes, we found a macro match
                     expanded[t.value] = True
-                    
+
                     m = self.macros[t.value]
                     if not m.arglist:
                         # A simple macro
@@ -508,7 +505,7 @@ class Preprocessor(object):
                                     else:
                                         args[len(m.arglist)-1] = tokens[j+positions[len(m.arglist)-1]:j+tokcount-1]
                                         del args[len(m.arglist):]
-                                        
+
                                 # Get macro replacement text
                                 rep = self.macro_expand_args(m,args)
                                 rep = self.expand_macros(rep,expanded)
@@ -521,7 +518,7 @@ class Preprocessor(object):
                 elif t.value == '__LINE__':
                     t.type = self.t_INTEGER
                     t.value = self.t_INTEGER_TYPE(t.lineno)
-                
+
             i += 1
         return tokens
 
@@ -546,10 +543,7 @@ class Preprocessor(object):
                         j += 1
                         continue
                     elif tokens[j].type == self.t_ID:
-                        if tokens[j].value in self.macros:
-                            result = "1L"
-                        else:
-                            result = "0L"
+                        result = "1L" if tokens[j].value in self.macros else "0L"
                         if not needparen: break
                     elif tokens[j].value == '(':
                         needparen = True
@@ -574,7 +568,7 @@ class Preprocessor(object):
                 tokens[i].value = str(tokens[i].value)
                 while tokens[i].value[-1] not in "0123456789abcdefABCDEF":
                     tokens[i].value = tokens[i].value[:-1]
-        
+
         expr = "".join([str(x.value) for x in tokens])
         expr = expr.replace("&&"," and ")
         expr = expr.replace("||"," or ")

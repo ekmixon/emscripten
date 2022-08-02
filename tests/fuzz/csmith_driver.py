@@ -9,6 +9,7 @@
 CSMITH_PATH should be set to something like /usr/local/include/csmith
 """
 
+
 import os
 import sys
 import shutil
@@ -24,7 +25,8 @@ from tools import shared
 from tools import config
 
 # can add flags like --no-threads --ion-offthread-compile=off
-engine = eval('config.' + sys.argv[1]) if len(sys.argv) > 1 else config.JS_ENGINES[0]
+engine = (eval(f'config.{sys.argv[1]}')
+          if len(sys.argv) > 1 else config.JS_ENGINES[0])
 
 print('testing js engine', engine)
 
@@ -36,7 +38,7 @@ CSMITH_PATH = os.environ.get('CSMITH_PATH', '/usr/include/csmith')
 assert os.path.exists(CSMITH_PATH), 'Please set the environment variable CSMITH_PATH.'
 CSMITH_CFLAGS = ['-I', CSMITH_PATH]
 
-filename = os.path.join(os.getcwd(), 'temp_fuzzcode' + str(os.getpid()) + '_')
+filename = os.path.join(os.getcwd(), f'temp_fuzzcode{str(os.getpid())}_')
 
 shared.DEFAULT_TIMEOUT = 5
 
@@ -106,8 +108,9 @@ while 1:
   print('4) Compile JS-ly and compare')
 
   def try_js(args=[]):
-    shared.try_delete(filename + '.js')
-    js_args = [shared.EMCC, fullname, '-o', filename + '.js'] + [opts] + CSMITH_CFLAGS + args + ['-w']
+    shared.try_delete(f'{filename}.js')
+    js_args = ([shared.EMCC, fullname, '-o', f'{filename}.js'] + [opts] +
+               CSMITH_CFLAGS + args + ['-w'])
     if TEST_BINARYEN:
       if random.random() < 0.5:
         js_args += ['-g']
@@ -152,15 +155,20 @@ while 1:
     open(fullname, 'a').write('\n// ' + ' '.join(escaped_short_args) + '\n\n')
     try:
       shared.run_process(js_args)
-      assert os.path.exists(filename + '.js')
+      assert os.path.exists(f'{filename}.js')
       return js_args
     except Exception:
       return False
 
   def execute_js(engine):
-    print('(run in %s)' % engine)
+    print(f'(run in {engine})')
     try:
-      js = subprocess.run(shared.NODE_JS + [filename + '.js'], stdout=PIPE, stderr=PIPE, timeout=15 * 60)
+      js = subprocess.run(
+          shared.NODE_JS + [f'{filename}.js'],
+          stdout=PIPE,
+          stderr=PIPE,
+          timeout=15 * 60,
+      )
     except Exception:
       print('failed to run in primary')
       return False

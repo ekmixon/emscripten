@@ -53,21 +53,17 @@ def make_command(filename, engine, args=[]):
 
 
 def check_engine(engine):
-  if type(engine) is list:
-    engine_path = engine[0]
-  else:
-    engine_path = engine
+  engine_path = engine[0] if type(engine) is list else engine
   global WORKING_ENGINES
   if engine_path not in WORKING_ENGINES:
-    logging.debug('Checking JS engine %s' % engine)
+    logging.debug(f'Checking JS engine {engine}')
     try:
       output = run_js(utils.path_from_root('tests/hello_world.js'), engine, skip_check=True)
-      if 'hello, world!' in output:
-        WORKING_ENGINES[engine_path] = True
-      else:
-        WORKING_ENGINES[engine_path] = False
+      WORKING_ENGINES[engine_path] = 'hello, world!' in output
     except Exception as e:
-      logging.info('Checking JS engine %s failed. Check your config file. Details: %s' % (str(engine), str(e)))
+      logging.info(
+          f'Checking JS engine {str(engine)} failed. Check your config file. Details: {str(e)}'
+      )
       WORKING_ENGINES[engine_path] = False
   return WORKING_ENGINES[engine_path]
 
@@ -81,7 +77,9 @@ def require_engine(engine):
   if engine_path not in WORKING_ENGINES:
     check_engine(engine)
   if not WORKING_ENGINES[engine_path]:
-    logging.critical('The engine (%s) does not seem to work, check the paths in the config file' % engine)
+    logging.critical(
+        f'The engine ({engine}) does not seem to work, check the paths in the config file'
+    )
     sys.exit(1)
 
 
@@ -95,7 +93,7 @@ def run_js(filename, engine, args=[],
   assert(type(assert_returncode) == int)
 
   if not os.path.exists(filename):
-    raise Exception('output file not found: ' + filename)
+    raise Exception(f'output file not found: {filename}')
 
   command = make_command(os.path.abspath(filename), engine, args)
   if common.EMTEST_VERBOSE:
@@ -120,10 +118,8 @@ def run_js(filename, engine, args=[],
   out = ['' if o is None else o for o in (proc.stdout, proc.stderr)]
   ret = '\n'.join(out) if full_output else out[0]
 
-  if assert_returncode == common.NON_ZERO:
-    if proc.returncode == 0:
-      raise CalledProcessError(proc.returncode, ' '.join(command), str(ret))
-  elif proc.returncode != assert_returncode:
+  if (assert_returncode == common.NON_ZERO and proc.returncode == 0
+      or assert_returncode != common.NON_ZERO
+      and proc.returncode != assert_returncode):
     raise CalledProcessError(proc.returncode, ' '.join(command), str(ret))
-
   return ret

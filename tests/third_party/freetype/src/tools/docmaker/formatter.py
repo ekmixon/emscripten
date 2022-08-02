@@ -72,11 +72,8 @@ class  Formatter:
     def  toc_exit( self ):
         pass
 
-    def  toc_dump( self, toc_filename = None, index_filename = None ):
-        output = None
-        if toc_filename:
-            output = open_output( toc_filename )
-
+    def toc_dump( self, toc_filename = None, index_filename = None ):
+        output = open_output( toc_filename ) if toc_filename else None
         self.toc_enter()
 
         for chap in self.processor.chapters:
@@ -111,11 +108,8 @@ class  Formatter:
     def  index_exit( self ):
         pass
 
-    def  index_dump( self, index_filename = None ):
-        output = None
-        if index_filename:
-            output = open_output( index_filename )
-
+    def index_dump( self, index_filename = None ):
+        output = open_output( index_filename ) if index_filename else None
         self.index_enter()
 
         for name in self.block_index:
@@ -154,11 +148,8 @@ class  Formatter:
     def  section_exit( self, section ):
         pass
 
-    def  section_dump( self, section, section_filename = None ):
-        output = None
-        if section_filename:
-            output = open_output( section_filename )
-
+    def section_dump( self, section, section_filename = None ):
+        output = open_output( section_filename ) if section_filename else None
         self.section_enter( section )
 
         for name in section.block_names:

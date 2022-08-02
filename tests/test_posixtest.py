@@ -28,8 +28,7 @@ class posixtest(RunnerCore):
 
 
 def filter_tests(all_tests):
-  pthread_tests = [t for t in all_tests if t.startswith('pthread_')]
-  return pthread_tests
+  return [t for t in all_tests if t.startswith('pthread_')]
 
 
 def get_pthread_tests():
@@ -132,10 +131,7 @@ flaky = {
 }
 
 # Mark certain tests as disabled.  These are tests that are either flaky or never return.
-disabled = {
-  **flaky,
-  **unsupported_noreturn,
-}
+disabled = flaky | unsupported_noreturn
 
 # These tests are known to fail reliably.  We run them anyway so that we can
 # detect fixes overtime.
@@ -177,6 +173,6 @@ for testdir in get_pthread_tests():
       continue
     test_suffix = os.path.splitext(os.path.basename(test_file))[0]
     test_suffix = test_suffix.replace('-', '_')
-    test_name = 'test_' + basename + '_' + test_suffix
+    test_name = f'test_{basename}_{test_suffix}'
     setattr(posixtest, test_name, make_test(test_name, test_file, browser=False))
     setattr(test_posixtest_browser.posixtest_browser, test_name, make_test(test_name, test_file, browser=True))

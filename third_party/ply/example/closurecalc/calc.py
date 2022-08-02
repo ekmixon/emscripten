@@ -123,8 +123,7 @@ while True:
         s = raw_input("calc > ")
     except EOFError:
         break
-    r = calc(s)
-    if r:
+    if r := calc(s):
         print(r)
 
     

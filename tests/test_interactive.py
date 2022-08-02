@@ -118,17 +118,26 @@ class interactive(BrowserCore):
   })
   def test_sdl2_mixer_music(self, formats, flags, music_name):
     shutil.copyfile(test_file('sounds', music_name), music_name)
-    self.btest('sdl2_mixer_music.c', expected='1', args=[
-      '-O2',
-      '--minify=0',
-      '--preload-file', music_name,
-      '-DSOUND_PATH=' + json.dumps(music_name),
-      '-DFLAGS=' + flags,
-      '-s', 'USE_SDL=2',
-      '-s', 'USE_SDL_MIXER=2',
-      '-s', 'SDL2_MIXER_FORMATS=' + json.dumps(formats),
-      '-s', 'INITIAL_MEMORY=33554432'
-    ])
+    self.btest(
+        'sdl2_mixer_music.c',
+        expected='1',
+        args=[
+            '-O2',
+            '--minify=0',
+            '--preload-file',
+            music_name,
+            f'-DSOUND_PATH={json.dumps(music_name)}',
+            f'-DFLAGS={flags}',
+            '-s',
+            'USE_SDL=2',
+            '-s',
+            'USE_SDL_MIXER=2',
+            '-s',
+            f'SDL2_MIXER_FORMATS={json.dumps(formats)}',
+            '-s',
+            'INITIAL_MEMORY=33554432',
+        ],
+    )
 
   def zzztest_sdl2_audio_beeps(self):
     # use closure to check for a possible bug with closure minifying away newer Audio() attributes
@@ -191,7 +200,8 @@ class interactive(BrowserCore):
   def test_freealut(self):
     src = test_file('third_party', 'freealut', 'examples', 'hello_world.c')
     inc = test_file('third_party', 'freealut', 'include')
-    self.compile_btest([src, '-O2', '-o', 'page.html', '-I' + inc] + self.get_freealut_library())
+    self.compile_btest([src, '-O2', '-o', 'page.html', f'-I{inc}'] +
+                       self.get_freealut_library())
     self.run_browser('page.html', 'You should hear "Hello World!"')
 
   def test_glfw_cursor_disabled(self):

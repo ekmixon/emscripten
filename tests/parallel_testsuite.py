@@ -68,18 +68,16 @@ class ParallelTestSuite(unittest.BaseTestSuite):
 
     Future work: measure slowness of tests and sort accordingly.
     """
-    tests = []
-    for test in self:
-      tests.append(test)
+    tests = [test for test in self]
     tests.sort(key=str)
     return tests[::-1]
 
   def init_processes(self, test_queue):
     use_cores = min(self.max_cores, num_cores())
-    print('Using %s parallel test processes' % use_cores)
+    print(f'Using {use_cores} parallel test processes')
     self.processes = []
     self.result_queue = multiprocessing.Queue()
-    self.dedicated_temp_dirs = [tempfile.mkdtemp() for x in range(use_cores)]
+    self.dedicated_temp_dirs = [tempfile.mkdtemp() for _ in range(use_cores)]
     for temp_dir in self.dedicated_temp_dirs:
       p = multiprocessing.Process(target=g_testing_thread,
                                   args=(test_queue, self.result_queue, temp_dir))
@@ -245,9 +243,7 @@ class FakeCode():
 
 
 def num_cores():
-  if NUM_CORES:
-    return int(NUM_CORES)
-  return multiprocessing.cpu_count()
+  return int(NUM_CORES) if NUM_CORES else multiprocessing.cpu_count()
 
 
 def get_from_queue(q):

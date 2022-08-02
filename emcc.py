@@ -20,6 +20,7 @@ emcc can be influenced by a few environment variables:
                slows down compilation).
 """
 
+
 from tools.toolchain_profiler import ToolchainProfiler
 
 import base64
@@ -149,16 +150,33 @@ UBSAN_SANITIZERS = {
 VALID_ENVIRONMENTS = ('web', 'webview', 'worker', 'node', 'shell')
 SIMD_INTEL_FEATURE_TOWER = ['-msse', '-msse2', '-msse3', '-mssse3', '-msse4.1', '-msse4.2', '-mavx']
 SIMD_NEON_FLAGS = ['-mfpu=neon']
-COMPILE_ONLY_FLAGS = set(['--default-obj-ext'])
-LINK_ONLY_FLAGS = set([
-    '--bind', '--closure', '--cpuprofiler', '--embed-file',
-    '--emit-symbol-map', '--emrun', '--exclude-file', '--extern-post-js',
-    '--extern-pre-js', '--ignore-dynamic-linking', '--js-library',
-    '--js-transform', '--memory-init-file', '--oformat', '--output_eol',
-    '--post-js', '--pre-js', '--preload-file', '--profiling-funcs',
-    '--proxy-to-worker', '--shell-file', '--source-map-base',
-    '--threadprofiler', '--use-preload-plugins'
-])
+COMPILE_ONLY_FLAGS = {'--default-obj-ext'}
+LINK_ONLY_FLAGS = {
+    '--bind',
+    '--closure',
+    '--cpuprofiler',
+    '--embed-file',
+    '--emit-symbol-map',
+    '--emrun',
+    '--exclude-file',
+    '--extern-post-js',
+    '--extern-pre-js',
+    '--ignore-dynamic-linking',
+    '--js-library',
+    '--js-transform',
+    '--memory-init-file',
+    '--oformat',
+    '--output_eol',
+    '--post-js',
+    '--pre-js',
+    '--preload-file',
+    '--profiling-funcs',
+    '--proxy-to-worker',
+    '--shell-file',
+    '--source-map-base',
+    '--threadprofiler',
+    '--use-preload-plugins',
+}
 
 
 # this function uses the global 'final' variable, which contains the current
@@ -180,7 +198,7 @@ def save_intermediate_with_wasm(name, wasm_binary):
   if not DEBUG:
     return
   save_intermediate(name) # save the js
-  building.save_intermediate(wasm_binary, name + '.wasm')
+  building.save_intermediate(wasm_binary, f'{name}.wasm')
 
 
 def base64_encode(b):
@@ -280,7 +298,7 @@ def will_metadce():
 def setup_environment_settings():
   # Environment setting based on user input
   environments = settings.ENVIRONMENT.split(',')
-  if any([x for x in environments if x not in VALID_ENVIRONMENTS]):
+  if any(x for x in environments if x not in VALID_ENVIRONMENTS):
     exit_with_error(f'Invalid environment specified in "ENVIRONMENT": {settings.ENVIRONMENT}. Should be one of: {",".join(VALID_ENVIRONMENTS)}')
 
   settings.ENVIRONMENT_MAY_BE_WEB = not settings.ENVIRONMENT or 'web' in environments
@@ -323,7 +341,8 @@ def expand_byte_size_suffixes(value):
   value = value.strip()
   match = re.match(r'^(\d+)\s*([kmgt]?b)?$', value, re.I)
   if not match:
-    exit_with_error("invalid byte size `%s`.  Valid suffixes are: kb, mb, gb, tb" % value)
+    exit_with_error(
+        f"invalid byte size `{value}`.  Valid suffixes are: kb, mb, gb, tb")
   value, suffix = match.groups()
   value = int(value)
   if suffix:
@@ -367,7 +386,7 @@ def apply_settings(changes):
     if value and value[0] == '@':
       filename = strip_prefix(value, '@')
       if not os.path.exists(filename):
-        exit_with_error('%s: file not found parsing argument: %s=%s' % (filename, key, value))
+        exit_with_error(f'{filename}: file not found parsing argument: {key}={value}')
       value = read_file(filename).strip()
     else:
       value = value.replace('\\', '\\\\')
@@ -389,7 +408,9 @@ def apply_settings(changes):
     # that so change types internally over time.
     # We only currently worry about lists vs non-lists.
     if expect_list != (type(value) == list):
-      exit_with_error('setting `%s` expects `%s` but got `%s`' % (user_key, type(existing), type(value)))
+      exit_with_error(
+          f'setting `{user_key}` expects `{type(existing)}` but got `{type(value)}`'
+      )
 
     setattr(settings, user_key, value)
 
@@ -468,7 +489,7 @@ def filter_link_flags(flags, using_lld):
     if using_lld:
       for flag, takes_arg in UNSUPPORTED_LLD_FLAGS.items():
         # lld allows various flags to have either a single -foo or double --foo
-        if f.startswith(flag) or f.startswith('-' + flag):
+        if f.startswith(flag) or f.startswith(f'-{flag}'):
           diagnostics.warning('linkflags', 'ignoring unsupported linker flag: `%s`', f)
           # Skip the next argument if this linker flag takes and argument and that
           # argument was not specified as a separately (i.e. it was specified as
@@ -563,14 +584,16 @@ def get_binaryen_passes():
       passes += ['--pass-arg=asyncify-verbose']
     if settings.ASYNCIFY_IGNORE_INDIRECT:
       passes += ['--pass-arg=asyncify-ignore-indirect']
-    passes += ['--pass-arg=asyncify-imports@%s' % ','.join(settings.ASYNCIFY_IMPORTS)]
+    passes += [
+        f"--pass-arg=asyncify-imports@{','.join(settings.ASYNCIFY_IMPORTS)}"
+    ]
 
     # shell escaping can be confusing; try to emit useful warnings
     def check_human_readable_list(items):
       for item in items:
         if item.count('(') != item.count(')'):
           logger.warning('emcc: ASYNCIFY list contains an item without balanced parentheses ("(", ")"):')
-          logger.warning('   ' + item)
+          logger.warning(f'   {item}')
           logger.warning('This may indicate improper escaping that led to splitting inside your names.')
           logger.warning('Try using a response file. e.g: -sASYNCIFY_ONLY=@funcs.txt. The format is a simple')
           logger.warning('text file, one line per function.')
@@ -578,13 +601,15 @@ def get_binaryen_passes():
 
     if settings.ASYNCIFY_REMOVE:
       check_human_readable_list(settings.ASYNCIFY_REMOVE)
-      passes += ['--pass-arg=asyncify-removelist@%s' % ','.join(settings.ASYNCIFY_REMOVE)]
+      passes += [
+          f"--pass-arg=asyncify-removelist@{','.join(settings.ASYNCIFY_REMOVE)}"
+      ]
     if settings.ASYNCIFY_ADD:
       check_human_readable_list(settings.ASYNCIFY_ADD)
-      passes += ['--pass-arg=asyncify-addlist@%s' % ','.join(settings.ASYNCIFY_ADD)]
+      passes += [f"--pass-arg=asyncify-addlist@{','.join(settings.ASYNCIFY_ADD)}"]
     if settings.ASYNCIFY_ONLY:
       check_human_readable_list(settings.ASYNCIFY_ONLY)
-      passes += ['--pass-arg=asyncify-onlylist@%s' % ','.join(settings.ASYNCIFY_ONLY)]
+      passes += [f"--pass-arg=asyncify-onlylist@{','.join(settings.ASYNCIFY_ONLY)}"]
   if settings.BINARYEN_IGNORE_IMPLICIT_TRAPS:
     passes += ['--ignore-implicit-traps']
   # normally we can assume the memory, if imported, has not been modified
@@ -600,7 +625,7 @@ def get_binaryen_passes():
     # BINARYEN_EXTRA_PASSES is comma-separated, and we support both '-'-prefixed and
     # unprefixed pass names
     extras = settings.BINARYEN_EXTRA_PASSES.split(',')
-    passes += [('--' + p) if p[0] != '-' else p for p in extras if p]
+    passes += [f'--{p}' if p[0] != '-' else p for p in extras if p]
 
   return passes
 
@@ -610,8 +635,8 @@ def make_js_executable(script):
   cmd = shared.shlex_join(config.JS_ENGINE)
   if not os.path.isabs(config.JS_ENGINE[0]):
     # TODO: use whereis etc. And how about non-*NIX?
-    cmd = '/usr/bin/env -S ' + cmd
-  logger.debug('adding `#!` to JavaScript file: %s' % cmd)
+    cmd = f'/usr/bin/env -S {cmd}'
+  logger.debug(f'adding `#!` to JavaScript file: {cmd}')
   # add shebang
   with open(script, 'w') as f:
     f.write('#!%s\n' % cmd)
@@ -623,9 +648,10 @@ def make_js_executable(script):
 
 
 def do_split_module(wasm_file):
-  os.rename(wasm_file, wasm_file + '.orig')
+  os.rename(wasm_file, f'{wasm_file}.orig')
   args = ['--instrument']
-  building.run_binaryen_command('wasm-split', wasm_file + '.orig', outfile=wasm_file, args=args)
+  building.run_binaryen_command(
+      'wasm-split', f'{wasm_file}.orig', outfile=wasm_file, args=args)
 
 
 def is_dash_s_for_emcc(args, i):
@@ -692,7 +718,7 @@ def process_dynamic_libs(dylibs, lib_dirs):
   dylibs += extras
   for dylib in dylibs:
     exports = webassembly.get_exports(dylib)
-    exports = set(e.name for e in exports)
+    exports = {e.name for e in exports}
     settings.SIDE_MODULE_EXPORTS.extend(exports)
 
     imports = webassembly.get_imports(dylib)
@@ -701,7 +727,7 @@ def process_dynamic_libs(dylibs, lib_dirs):
     # on the dynamic linker to create them on the fly.
     # TODO(sbc): Integrate with metadata['invokeFuncs'] that comes from the
     # main module to avoid creating new invoke functions at runtime.
-    imports = set(i for i in imports if not i.startswith('invoke_'))
+    imports = {i for i in imports if not i.startswith('invoke_')}
     weak_imports = imports.intersection(exports)
     strong_imports = imports.difference(exports)
     logger.debug('Adding symbols requirements from `%s`: %s', dylib, imports)
@@ -727,30 +753,29 @@ def unmangle_symbols_from_cmdline(symbols):
 def parse_s_args(args):
   settings_changes = []
   for i in range(len(args)):
-    if args[i].startswith('-s'):
-      if is_dash_s_for_emcc(args, i):
-        if args[i] == '-s':
-          key = args[i + 1]
-          args[i + 1] = ''
-        else:
-          key = strip_prefix(args[i], '-s')
-        args[i] = ''
+    if args[i].startswith('-s') and is_dash_s_for_emcc(args, i):
+      if args[i] == '-s':
+        key = args[i + 1]
+        args[i + 1] = ''
+      else:
+        key = strip_prefix(args[i], '-s')
+      args[i] = ''
 
-        # If not = is specified default to 1
-        if '=' not in key:
-          key += '=1'
+      # If not = is specified default to 1
+      if '=' not in key:
+        key += '=1'
 
-        # Special handling of browser version targets. A version -1 means that the specific version
-        # is not supported at all. Replace those with INT32_MAX to make it possible to compare e.g.
-        # #if MIN_FIREFOX_VERSION < 68
-        if re.match(r'MIN_.*_VERSION(=.*)?', key):
-          try:
-            if int(key.split('=')[1]) < 0:
-              key = key.split('=')[0] + '=0x7FFFFFFF'
-          except Exception:
-            pass
+      # Special handling of browser version targets. A version -1 means that the specific version
+      # is not supported at all. Replace those with INT32_MAX to make it possible to compare e.g.
+      # #if MIN_FIREFOX_VERSION < 68
+      if re.match(r'MIN_.*_VERSION(=.*)?', key):
+        try:
+          if int(key.split('=')[1]) < 0:
+            key = key.split('=')[0] + '=0x7FFFFFFF'
+        except Exception:
+          pass
 
-        settings_changes.append(key)
+      settings_changes.append(key)
 
   newargs = [a for a in args if a]
   return (settings_changes, newargs)
@@ -763,16 +788,11 @@ def emsdk_ldflags(user_args):
   library_paths = [
      shared.Cache.get_lib_dir(absolute=True)
   ]
-  ldflags = [f'-L{l}' for l in library_paths]
-
-  if '-nostdlib' in user_args:
-    return ldflags
-
-  return ldflags
+  return [f'-L{l}' for l in library_paths]
 
 
 def emsdk_cflags(user_args):
-  cflags = ['--sysroot=' + shared.Cache.get_sysroot(absolute=True)]
+  cflags = [f'--sysroot={shared.Cache.get_sysroot(absolute=True)}']
 
   def array_contains_any_of(hay, needles):
     for n in needles:
@@ -857,7 +877,7 @@ def get_cflags(user_args):
 
   if settings.LTO:
     if not any(a.startswith('-flto') for a in user_args):
-      cflags.append('-flto=' + settings.LTO)
+      cflags.append(f'-flto={settings.LTO}')
   else:
     # In LTO mode these args get passed instead at link time when the backend runs.
     for a in building.llvm_backend_args():
@@ -865,11 +885,12 @@ def get_cflags(user_args):
 
   # Set the LIBCPP ABI version to at least 2 so that we get nicely aligned string
   # data and other nice fixes.
-  cflags += [# '-fno-threadsafe-statics', # disabled due to issue 1289
-             '-D__EMSCRIPTEN_major__=' + str(shared.EMSCRIPTEN_VERSION_MAJOR),
-             '-D__EMSCRIPTEN_minor__=' + str(shared.EMSCRIPTEN_VERSION_MINOR),
-             '-D__EMSCRIPTEN_tiny__=' + str(shared.EMSCRIPTEN_VERSION_TINY),
-             '-D_LIBCPP_ABI_VERSION=2']
+  cflags += [
+      f'-D__EMSCRIPTEN_major__={str(shared.EMSCRIPTEN_VERSION_MAJOR)}',
+      f'-D__EMSCRIPTEN_minor__={str(shared.EMSCRIPTEN_VERSION_MINOR)}',
+      f'-D__EMSCRIPTEN_tiny__={str(shared.EMSCRIPTEN_VERSION_TINY)}',
+      '-D_LIBCPP_ABI_VERSION=2',
+  ]
 
   # Changes to default clang behavior
 
@@ -963,7 +984,7 @@ def run(args):
   if DEBUG:
     cmd = shared.shlex_join(args)
     if EMCC_CFLAGS:
-      cmd += ' + ' + EMCC_CFLAGS
+      cmd += f' + {EMCC_CFLAGS}'
     logger.warning(f'invocation: {cmd} (in {os.getcwd()})')
   if EMCC_CFLAGS:
     args.extend(shlex.split(EMCC_CFLAGS))
@@ -1008,11 +1029,7 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
 ''')
     return 0
 
-  if run_via_emxx:
-    clang = shared.CLANG_CXX
-  else:
-    clang = shared.CLANG_CC
-
+  clang = shared.CLANG_CXX if run_via_emxx else shared.CLANG_CC
   if len(args) == 1 and args[0] == '-v': # -v with no inputs
     # autoconf likes to see 'GNU' in the output to enable shared object support
     print(version_string(), file=sys.stderr)
@@ -1047,8 +1064,7 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
   if '-print-search-dirs' in args:
     return run_process([clang, '-print-search-dirs'], check=False).returncode
 
-  EMMAKEN_CFLAGS = os.environ.get('EMMAKEN_CFLAGS')
-  if EMMAKEN_CFLAGS:
+  if EMMAKEN_CFLAGS := os.environ.get('EMMAKEN_CFLAGS'):
     args += shlex.split(EMMAKEN_CFLAGS)
 
   if 'EMMAKEN_NO_SDK' in os.environ:
@@ -1081,7 +1097,10 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
     for flag in state.link_flags:
       diagnostics.warning('unused-command-line-argument', "argument unused during compilation: '%s'" % flag[1])
     for f in linker_inputs:
-      diagnostics.warning('unused-command-line-argument', "%s: linker input file unused because linking not done" % f[1])
+      diagnostics.warning(
+          'unused-command-line-argument',
+          f"{f[1]}: linker input file unused because linking not done",
+      )
 
     return 0
 
@@ -1180,10 +1199,7 @@ def phase_parse_arguments(state):
     key, value = s.split('=', 1)
     user_settings[key] = value
 
-  # STRICT is used when applying settings so it needs to be applied first before
-  # called ing `apply_settings`.
-  strict_cmdline = user_settings.get('STRICT')
-  if strict_cmdline:
+  if strict_cmdline := user_settings.get('STRICT'):
     settings.STRICT = int(strict_cmdline)
 
   # Apply user -jsD settings
@@ -1256,14 +1272,14 @@ def phase_setup(options, state, newargs, settings_map):
         if building.is_bitcode(arg):
           message = f'{arg}: File has a suffix of a static library {STATICLIB_ENDINGS}, but instead is an LLVM bitcode file! When linking LLVM bitcode files use .bc or .o.'
         else:
-          message = arg + ': Unknown format, not a static library!'
+          message = f'{arg}: Unknown format, not a static library!'
         exit_with_error(message)
       if file_suffix in DYNAMICLIB_ENDINGS and not building.is_bitcode(arg) and not building.is_wasm(arg):
         # For shared libraries that are neither bitcode nor wasm, assuming its local native
         # library and attempt to find a library by the same name in our own library path.
         # TODO(sbc): Do we really need this feature?  See test_other.py:test_local_link
         libname = strip_prefix(get_library_basename(arg), 'lib')
-        flag = '-l' + libname
+        flag = f'-l{libname}'
         diagnostics.warning('map-unrecognized-libraries', f'unrecognized file type: `{arg}`.  Mapping to `{flag}` and hoping for the best')
         add_link_flag(state, i, flag)
       else:
@@ -1332,10 +1348,7 @@ def phase_setup(options, state, newargs, settings_map):
       if '-emit-llvm' in newargs:
         options.default_object_extension = '.bc'
     elif state.has_dash_S:
-      if '-emit-llvm' in newargs:
-        options.default_object_extension = '.ll'
-      else:
-        options.default_object_extension = '.s'
+      options.default_object_extension = '.ll' if '-emit-llvm' in newargs else '.s'
     elif '-M' in newargs or '-MM' in newargs:
       options.default_object_extension = '.mout' # not bitcode, not js; but just dependency rule of the input file
 

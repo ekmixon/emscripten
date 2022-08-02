@@ -20,7 +20,7 @@ benchmark = ''
 benchmarker = ''
 matrix = []
 
-for line in open(sys.argv[1]).readlines():
+for line in open(sys.argv[1]):
   line = line.strip()
   if line.startswith('test_'):
     benchmark = line.split(' ')[0][5:]
@@ -35,15 +35,16 @@ for line in open(sys.argv[1]).readlines():
     if benchmarker not in matrix[0]:
       matrix[0] += [benchmarker]
     # print('benchmarker:', benchmarker)
-  elif line.startswith(benchmarker + ':'):
+  elif line.startswith(f'{benchmarker}:'):
     parts = line.strip().split(' ')
     mean = float(parts[2])
     median = float(parts[7])
     noise = float(parts[13][:-2])
     if noise > 5:
-      print('warning: noisy! (%s: %f%%)' % (benchmark + '.' + benchmarker, noise))
+      print('warning: noisy! (%s: %f%%)' % (f'{benchmark}.{benchmarker}', noise))
     if abs(mean - median) / mean > 0.05:
-      print('warning: mean and median diverge! (%s: %f vs %f)' % (benchmark + '.' + benchmarker, mean, median))
+      print('warning: mean and median diverge! (%s: %f vs %f)' %
+            (f'{benchmark}.{benchmarker}', mean, median))
     # print(benchmark, benchmarker, mean, median, noise)
     matrix[-1] += [median]
 

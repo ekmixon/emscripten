@@ -90,7 +90,7 @@ def compiler_for(filename, force_c=False):
 # skips the test if that function returns true
 def skip_if(func, condition, explanation='', negate=False):
   assert callable(func)
-  explanation_str = ' : %s' % explanation if explanation else ''
+  explanation_str = f' : {explanation}' if explanation else ''
 
   @wraps(func)
   def decorated(self, *args, **kwargs):
@@ -134,16 +134,12 @@ def disabled(note=''):
 
 def no_mac(note=''):
   assert not callable(note)
-  if MACOS:
-    return unittest.skip(note)
-  return lambda f: f
+  return unittest.skip(note) if MACOS else (lambda f: f)
 
 
 def no_windows(note=''):
   assert not callable(note)
-  if WINDOWS:
-    return unittest.skip(note)
-  return lambda f: f
+  return unittest.skip(note) if WINDOWS else (lambda f: f)
 
 
 def requires_native_clang(func):
@@ -195,7 +191,7 @@ def env_modify(updates):
   # This could also be done with mock.patch.dict() but taking a dependency
   # on the mock library is probably not worth the benefit.
   old_env = os.environ.copy()
-  print("env_modify: " + str(updates))
+  print(f"env_modify: {str(updates)}")
   # Seting a value to None means clear the environment variable
   clears = [key for key, value in updates.items() if value is None]
   updates = {key: value for key, value in updates.items() if value is not None}
@@ -229,12 +225,12 @@ def limit_size(string, maxbytes=800000 * 20, maxlines=100000, max_line=5000):
   lines = string.splitlines()
   for i, line in enumerate(lines):
     if len(line) > max_line:
-      lines[i] = line[:max_line] + '[..]'
+      lines[i] = f'{line[:max_line]}[..]'
   if len(lines) > maxlines:
-    lines = lines[0:maxlines // 2] + ['[..]'] + lines[-maxlines // 2:]
+    lines = lines[:maxlines // 2] + ['[..]'] + lines[-maxlines // 2:]
   string = '\n'.join(lines) + '\n'
   if len(string) > maxbytes:
-    string = string[0:maxbytes // 2] + '\n[..]\n' + string[-maxbytes // 2:]
+    string = string[:maxbytes // 2] + '\n[..]\n' + string[-maxbytes // 2:]
   return string
 
 
@@ -297,18 +293,14 @@ class RunnerMeta(type):
       return func(self, *args)
 
     # Add suffix to the function name so that it displays correctly.
-    if suffix:
-      resulting_test.__name__ = f'{name}_{suffix}'
-    else:
-      resulting_test.__name__ = name
-
+    resulting_test.__name__ = f'{name}_{suffix}' if suffix else name
     # On python 3, functions have __qualname__ as well. This is a full dot-separated path to the
     # function.  We add the suffix to it as well.
     resulting_test.__qualname__ = f'{func.__qualname__}_{suffix}'
 
     return resulting_test.__name__, resulting_test
 
-  def __new__(mcs, name, bases, attrs):
+  def __new__(cls, name, bases, attrs):
     # This metaclass expands parameterized methods from `attrs` into separate ones in `new_attrs`.
     new_attrs = {}
 
@@ -317,16 +309,20 @@ class RunnerMeta(type):
       if hasattr(value, '_parameterize'):
         # If it does, we extract the parameterization information, build new test functions.
         for suffix, args in value._parameterize.items():
-          new_name, func = mcs.make_test(attr_name, value, suffix, args)
-          assert new_name not in new_attrs, 'Duplicate attribute name generated when parameterizing %s' % attr_name
+          new_name, func = cls.make_test(attr_name, value, suffix, args)
+          assert (
+              new_name not in new_attrs
+          ), f'Duplicate attribute name generated when parameterizing {attr_name}'
           new_attrs[new_name] = func
       else:
         # If not, we just copy it over to new_attrs verbatim.
-        assert attr_name not in new_attrs, '%s collided with an attribute from parameterization' % attr_name
+        assert (
+            attr_name not in new_attrs
+        ), f'{attr_name} collided with an attribute from parameterization'
         new_attrs[attr_name] = value
 
     # We invoke type, the default metaclass, to actually create the new class, with new_attrs.
-    return type.__new__(mcs, name, bases, new_attrs)
+    return type.__new__(cls, name, bases, new_attrs)
 
 
 class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
@@ -375,9 +371,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     elif '--memory-init-file' in self.emcc_args:
       return int(self.emcc_args[self.emcc_args.index('--memory-init-file') + 1])
     else:
-      # side modules handle memory differently; binaryen puts the memory in the wasm module
-      opt_supports = any(opt in self.emcc_args for opt in ('-O2', '-O3', '-Os', '-Oz'))
-      return opt_supports
+      return any(opt in self.emcc_args for opt in ('-O2', '-O3', '-Os', '-Oz'))
 
   def set_temp_dir(self, temp_dir):
     self.temp_dir = temp_dir
@@ -415,11 +409,12 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
 
     if EMTEST_DETECT_TEMPFILE_LEAKS:
       for root, dirnames, filenames in os.walk(self.temp_dir):
-        for dirname in dirnames:
-          self.temp_files_before_run.append(os.path.normpath(os.path.join(root, dirname)))
-        for filename in filenames:
-          self.temp_files_before_run.append(os.path.normpath(os.path.join(root, filename)))
-
+        self.temp_files_before_run.extend(
+            os.path.normpath(os.path.join(root, dirname))
+            for dirname in dirnames)
+        self.temp_files_before_run.extend(
+            os.path.normpath(os.path.join(root, filename))
+            for filename in filenames)
     if EMTEST_SAVE_DIR:
       self.working_dir = os.path.join(self.temp_dir, 'emscripten_test')
       if os.path.exists(self.working_dir):
@@ -436,7 +431,9 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
         print('Creating new test output directory')
         ensure_dir(self.working_dir)
     else:
-      self.working_dir = tempfile.mkdtemp(prefix='emscripten_test_' + self.__class__.__name__ + '_', dir=self.temp_dir)
+      self.working_dir = tempfile.mkdtemp(
+          prefix=f'emscripten_test_{self.__class__.__name__}_',
+          dir=self.temp_dir)
     os.chdir(self.working_dir)
 
     if not EMTEST_SAVE_DIR:
@@ -446,36 +443,44 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
           self.has_prev_ll = True
 
   def tearDown(self):
-    if not EMTEST_SAVE_DIR:
-      # rmtree() fails on Windows if the current working directory is inside the tree.
-      os.chdir(os.path.dirname(self.get_dir()))
-      try_delete(self.get_dir())
+    if EMTEST_SAVE_DIR:
+      return
+    # rmtree() fails on Windows if the current working directory is inside the tree.
+    os.chdir(os.path.dirname(self.get_dir()))
+    try_delete(self.get_dir())
 
-      if EMTEST_DETECT_TEMPFILE_LEAKS and not DEBUG:
-        temp_files_after_run = []
-        for root, dirnames, filenames in os.walk(self.temp_dir):
-          for dirname in dirnames:
-            temp_files_after_run.append(os.path.normpath(os.path.join(root, dirname)))
-          for filename in filenames:
-            temp_files_after_run.append(os.path.normpath(os.path.join(root, filename)))
+    if EMTEST_DETECT_TEMPFILE_LEAKS and not DEBUG:
+      temp_files_after_run = []
+      for root, dirnames, filenames in os.walk(self.temp_dir):
+        temp_files_after_run.extend(
+            os.path.normpath(os.path.join(root, dirname))
+            for dirname in dirnames)
+        temp_files_after_run.extend(
+            os.path.normpath(os.path.join(root, filename))
+            for filename in filenames)
+      # Our leak detection will pick up *any* new temp files in the temp dir.
+      # They may not be due to us, but e.g. the browser when running browser
+      # tests. Until we figure out a proper solution, ignore some temp file
+      # names that we see on our CI infrastructure.
+      ignorable_file_prefixes = [
+        '/tmp/tmpaddon',
+        '/tmp/circleci-no-output-timeout',
+        '/tmp/wasmer'
+      ]
 
-        # Our leak detection will pick up *any* new temp files in the temp dir.
-        # They may not be due to us, but e.g. the browser when running browser
-        # tests. Until we figure out a proper solution, ignore some temp file
-        # names that we see on our CI infrastructure.
-        ignorable_file_prefixes = [
-          '/tmp/tmpaddon',
-          '/tmp/circleci-no-output-timeout',
-          '/tmp/wasmer'
-        ]
-
-        left_over_files = set(temp_files_after_run) - set(self.temp_files_before_run)
-        left_over_files = [f for f in left_over_files if not any([f.startswith(prefix) for prefix in ignorable_file_prefixes])]
-        if len(left_over_files):
-          print('ERROR: After running test, there are ' + str(len(left_over_files)) + ' new temporary files/directories left behind:', file=sys.stderr)
-          for f in left_over_files:
-            print('leaked file: ' + f, file=sys.stderr)
-          self.fail('Test leaked ' + str(len(left_over_files)) + ' temporary files!')
+      left_over_files = set(temp_files_after_run) - set(self.temp_files_before_run)
+      left_over_files = [
+          f for f in left_over_files
+          if not any(f.startswith(prefix) for prefix in ignorable_file_prefixes)
+      ]
+      if len(left_over_files):
+        print(
+            f'ERROR: After running test, there are {len(left_over_files)} new temporary files/directories left behind:',
+            file=sys.stderr,
+        )
+        for f in left_over_files:
+          print(f'leaked file: {f}', file=sys.stderr)
+        self.fail(f'Test leaked {len(left_over_files)} temporary files!')
 
   def get_setting(self, key, default=None):
     return self.settings_mods.get(key, default)
@@ -574,9 +579,9 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     if shared.suffix(filename) not in ('.i', '.ii'):
       # Add the location of the test file to include path.
       cmd += ['-I.']
-      cmd += ['-I' + str(include) for include in includes]
+      cmd += [f'-I{str(include)}' for include in includes]
 
-    self.run_process(cmd, stderr=self.stderr_redirect if not DEBUG else None)
+    self.run_process(cmd, stderr=None if DEBUG else self.stderr_redirect)
     self.assertExists(output)
     if js_outfile and not self.uses_es6:
       self.verify_es5(output)
@@ -589,7 +594,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     return output
 
   def get_func(self, src, name):
-    start = src.index('function ' + name + '(')
+    start = src.index(f'function {name}(')
     t = start
     n = 0
     while True:
@@ -623,10 +628,10 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     # output is something like
     # [?]        : 125
     for line in out.splitlines():
-      if '[' + what + ']' in line:
+      if f'[{what}]' in line:
         ret = line.split(':')[1].strip()
         return int(ret)
-    self.fail('Failed to find [%s] in wasm-opt output' % what)
+    self.fail(f'Failed to find [{what}] in wasm-opt output')
 
   def get_wasm_text(self, wasm_binary):
     return self.run_process([os.path.join(building.get_binaryen_bin(), 'wasm-dis'), wasm_binary], stdout=PIPE).stdout
@@ -697,12 +702,12 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
 
   def assertExists(self, filename, msg=None):
     if not msg:
-      msg = 'Expected file not found: ' + filename
+      msg = f'Expected file not found: {filename}'
     self.assertTrue(os.path.exists(filename), msg)
 
   def assertNotExists(self, filename, msg=None):
     if not msg:
-      msg = 'Unexpected file exists: ' + filename
+      msg = f'Unexpected file exists: {filename}'
     self.assertFalse(os.path.exists(filename), msg)
 
   # Tests that the given two paths are identical, modulo path delimiters. E.g. "C:/foo" is equal to "C:\foo".
@@ -749,7 +754,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     if callable(string):
       string = string()
 
-    if not any(v in string for v in values):
+    if all(v not in string for v in values):
       diff = difflib.unified_diff(values[0].split('\n'), string.split('\n'), fromfile='expected', tofile='actual')
       diff = ''.join(a.rstrip() + '\n' for a in diff)
       self.fail("Expected to find '%s' in '%s', diff:\n\n%s\n%s" % (
@@ -797,17 +802,17 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
 
     emcc_args = self.get_emcc_args()
 
-    hash_input = (str(emcc_args) + ' $ ' + str(env_init)).encode('utf-8')
+    hash_input = f'{str(emcc_args)} $ {str(env_init)}'.encode('utf-8')
     cache_name = name + ','.join([opt for opt in emcc_args if len(opt) < 7]) + '_' + hashlib.md5(hash_input).hexdigest() + cache_name_extra
 
-    valid_chars = "_%s%s" % (string.ascii_letters, string.digits)
+    valid_chars = f"_{string.ascii_letters}{string.digits}"
     cache_name = ''.join([(c if c in valid_chars else '_') for c in cache_name])
 
     if self.library_cache.get(cache_name):
-      print('<load %s from cache> ' % cache_name, file=sys.stderr)
+      print(f'<load {cache_name} from cache> ', file=sys.stderr)
       generated_libs = []
       for basename, contents in self.library_cache[cache_name]:
-        bc_file = os.path.join(build_dir, cache_name + '_' + basename)
+        bc_file = os.path.join(build_dir, f'{cache_name}_{basename}')
         write_binary(bc_file, contents)
         generated_libs.append(bc_file)
       return generated_libs
@@ -844,7 +849,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
 
   def emcc(self, filename, args=[], output_filename=None, **kwargs):
     if output_filename is None:
-      output_filename = filename + '.o'
+      output_filename = f'{filename}.o'
     try_delete(output_filename)
     self.run_process([compiler_for(filename), filename] + args + ['-o', output_filename], **kwargs)
 
@@ -937,11 +942,11 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
       self.run_process(cmdv)
 
     ccshared('liba.cpp')
-    ccshared('libb.c', ['liba' + so])
-    ccshared('libc.c', ['liba' + so])
+    ccshared('libb.c', [f'liba{so}'])
+    ccshared('libc.c', [f'liba{so}'])
 
     self.set_setting('MAIN_MODULE')
-    extra_args = ['-L.', 'libb' + so, 'libc' + so]
+    extra_args = ['-L.', f'libb{so}', f'libc{so}']
     do_run(r'''
       #ifdef __cplusplus
       extern "C" {
@@ -1004,10 +1009,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
     if 'no_build' in kwargs:
       filename = src
     else:
-      if force_c:
-        filename = 'src.c'
-      else:
-        filename = 'src.cpp'
+      filename = 'src.c' if force_c else 'src.cpp'
       write_file(filename, src)
     self._build_and_run(filename, expected_output, **kwargs)
 
@@ -1064,7 +1066,9 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
         # we indicate with None as the engine
         engines += [[None]]
     if len(engines) == 0:
-      self.skipTest('No JS engine present to run this test with. Check %s and the paths therein.' % config.EM_CONFIG)
+      self.skipTest(
+          f'No JS engine present to run this test with. Check {config.EM_CONFIG} and the paths therein.'
+      )
     for engine in engines:
       js_output = self.run_js(js_file, engine, args,
                               output_nicerizer=output_nicerizer,
@@ -1083,7 +1087,7 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
             if check_for_error:
               self.assertNotContained('ERROR', js_output)
         except Exception:
-          print('(test did not pass in JS engine: %s)' % engine)
+          print(f'(test did not pass in JS engine: {engine})')
           raise
     return js_output
 
@@ -1140,24 +1144,27 @@ class RunnerCore(unittest.TestCase, metaclass=RunnerMeta):
 # which tells the web page, which then opens a window with the test. Doing
 # it this way then allows the page to close() itself when done.
 def harness_server_func(in_queue, out_queue, port):
+
+
+
   class TestServerHandler(SimpleHTTPRequestHandler):
     # Request header handler for default do_GET() path in
     # SimpleHTTPRequestHandler.do_GET(self) below.
     def send_head(self):
-      if self.path.endswith('.js'):
-        path = self.translate_path(self.path)
-        try:
-          f = open(path, 'rb')
-        except IOError:
-          self.send_error(404, "File not found: " + path)
-          return None
-        self.send_response(200)
-        self.send_header('Content-type', 'application/javascript')
-        self.send_header('Connection', 'close')
-        self.end_headers()
-        return f
-      else:
+      if not self.path.endswith('.js'):
         return SimpleHTTPRequestHandler.send_head(self)
+
+      path = self.translate_path(self.path)
+      try:
+        f = open(path, 'rb')
+      except IOError:
+        self.send_error(404, f"File not found: {path}")
+        return None
+      self.send_response(200)
+      self.send_header('Content-type', 'application/javascript')
+      self.send_header('Connection', 'close')
+      self.end_headers()
+      return f
 
     # Add COOP, COEP, CORP, and no-caching headers
     def end_headers(self):
@@ -1246,9 +1253,10 @@ def harness_server_func(in_queue, out_queue, port):
           print('[simple HTTP serving:', unquote_plus(self.path), ']')
         SimpleHTTPRequestHandler.do_GET(self)
 
-    def log_request(code=0, size=0):
+    def log_request(self, size=0):
       # don't log; too noisy
       pass
+
 
   # allows streaming compilation to work
   SimpleHTTPRequestHandler.extensions_map['.wasm'] = 'application/wasm'
@@ -1292,14 +1300,11 @@ class BrowserCore(RunnerCore):
     # If the given browser is a scalar, treat it like one of the possible types
     # from https://docs.python.org/2/library/webbrowser.html
     if len(browser_args) == 1:
-      try:
+      with contextlib.suppress(webbrowser.Error):
         # This throws if the type of browser isn't available
         webbrowser.get(browser_args[0]).open_new(url)
         logger.info('Using Emscripten browser: %s', browser_args[0])
         return
-      except webbrowser.Error:
-        # Ignore the exception and fallback to the custom command logic
-        pass
     # Else assume the given browser is a specific program with additional
     # parameters and delegate to that
     logger.info('Using Emscripten browser: %s', str(browser_args))
@@ -1318,7 +1323,7 @@ class BrowserCore(RunnerCore):
     cls.harness_server = multiprocessing.Process(target=harness_server_func, args=(cls.harness_in_queue, cls.harness_out_queue, cls.port))
     cls.harness_server.start()
     print('[Browser harness server on process %d]' % cls.harness_server.pid)
-    cls.browser_open('http://localhost:%s/run_harness' % cls.port)
+    cls.browser_open(f'http://localhost:{cls.port}/run_harness')
 
   @classmethod
   def tearDownClass(cls):
@@ -1336,7 +1341,7 @@ class BrowserCore(RunnerCore):
     if not self.harness_out_queue.empty():
       while not self.harness_out_queue.empty():
         self.harness_out_queue.get()
-      raise Exception('excessive responses from %s' % who)
+      raise Exception(f'excessive responses from {who}')
 
   # @param extra_tries: how many more times to try this test, if it fails. browser tests have
   #                     many more causes of flakiness (in particular, they do not run
@@ -1353,10 +1358,8 @@ class BrowserCore(RunnerCore):
       print('[browser launch:', html_file, ']')
     if expectedResult is not None:
       try:
-        self.harness_in_queue.put((
-          'http://localhost:%s/%s' % (self.port, html_file),
-          self.get_dir()
-        ))
+        self.harness_in_queue.put((f'http://localhost:{self.port}/{html_file}',
+                                   self.get_dir()))
         received_output = False
         output = '[no http server activity]'
         start = time.time()
@@ -1383,19 +1386,20 @@ class BrowserCore(RunnerCore):
           try:
             self.assertContained(expectedResult, output)
           except Exception as e:
-            if extra_tries > 0:
-              print('[test error (see below), automatically retrying]')
-              print(e)
-              return self.run_browser(html_file, message, expectedResult, timeout, extra_tries - 1)
-            else:
+            if extra_tries <= 0:
               raise e
+            print('[test error (see below), automatically retrying]')
+            print(e)
+            return self.run_browser(html_file, message, expectedResult, timeout, extra_tries - 1)
       finally:
         time.sleep(0.1) # see comment about Windows above
       self.assert_out_queue_empty('this test')
     else:
       webbrowser.open_new(os.path.abspath(html_file))
       print('A web browser window should have opened a page containing the results of a part of this test.')
-      print('You need to manually look at the page to see that it works ok: ' + message)
+      print(
+          f'You need to manually look at the page to see that it works ok: {message}'
+      )
       print('(sleeping for a bit to keep the directory alive for the web browser..)')
       time.sleep(5)
       print('(moving on..)')
@@ -1519,9 +1523,12 @@ class BrowserCore(RunnerCore):
       if reporting == Reporting.FULL:
         # If C reporting (i.e. REPORT_RESULT macro) is required
         # also compile in report_result.cpp and forice-include report_result.h
-        args += ['-I' + TEST_ROOT,
-                 '-include', test_file('report_result.h'),
-                 test_file('report_result.cpp')]
+        args += [
+            f'-I{TEST_ROOT}',
+            '-include',
+            test_file('report_result.h'),
+            test_file('report_result.cpp'),
+        ]
     self.run_process([EMCC] + self.get_emcc_args() + args)
 
   def btest_exit(self, filename, assert_returncode=0, *args, **kwargs):
@@ -1551,7 +1558,7 @@ class BrowserCore(RunnerCore):
       filename = test_file(filename)
     if reference:
       self.reference = reference
-      expected = [str(i) for i in range(0, reference_slack + 1)]
+      expected = [str(i) for i in range(reference_slack + 1)]
       self.reftest(test_file(reference), manually_trigger=manually_trigger_reftest)
       if not manual_reference:
         args += ['--pre-js', 'reftest.js', '-s', 'GL_TESTING']
@@ -1565,7 +1572,13 @@ class BrowserCore(RunnerCore):
       post_build()
     if not isinstance(expected, list):
       expected = [expected]
-    self.run_browser(outfile + url_suffix, message, ['/report_result?' + e for e in expected], timeout=timeout, extra_tries=extra_tries)
+    self.run_browser(
+        outfile + url_suffix,
+        message,
+        [f'/report_result?{e}' for e in expected],
+        timeout=timeout,
+        extra_tries=extra_tries,
+    )
 
     # Tests can opt into being run under asmjs as well
     if 'WASM=0' not in original_args and (also_asmjs or self.also_asmjs):
@@ -1618,10 +1631,7 @@ def build_library(name,
 
   generated_libs = [os.path.join(project_dir, lib) for lib in generated_libs]
 
-  if native:
-    env = clang_native.get_clang_native_env()
-  else:
-    env = os.environ.copy()
+  env = clang_native.get_clang_native_env() if native else os.environ.copy()
   env.update(env_init)
 
   if not native:

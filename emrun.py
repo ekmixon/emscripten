@@ -355,10 +355,7 @@ def is_browser_process_alive():
   if current_browser_processes:
     try:
       import psutil
-      for p in current_browser_processes:
-        if psutil.pid_exists(p['pid']):
-          return True
-      return False
+      return any(psutil.pid_exists(p['pid']) for p in current_browser_processes)
     except Exception:
       # Fail gracefully if psutil not available
       logv('psutil is not available, emrun may not be able to accurately track whether the browser process is alive or not')
@@ -376,10 +373,10 @@ def kill_browser_process():
   global browser_process, processname_killed_atexit, current_browser_processes
   if browser_process and browser_process.poll() is None:
     try:
-      logv('Terminating browser process pid=' + str(browser_process.pid) + '..')
+      logv(f'Terminating browser process pid={str(browser_process.pid)}..')
       browser_process.kill()
     except Exception as e:
-      logv('Failed with error ' + str(e) + '!')
+      logv(f'Failed with error {str(e)}!')
 
     browser_process = None
     # We have a hold of the target browser process explicitly, no need to resort to killall,
@@ -392,7 +389,7 @@ def kill_browser_process():
         logv('Terminating browser process pid=' + str(pid['pid']) + '..')
         os.kill(pid['pid'], 9)
       except Exception as e:
-        logv('Failed with error ' + str(e) + '!')
+        logv(f'Failed with error {str(e)}!')
 
     current_browser_processes = None
     # We have a hold of the target browser process explicitly, no need to resort to killall,
@@ -406,7 +403,9 @@ def kill_browser_process():
     else:
       logv("Terminating all processes that have string '" + processname_killed_atexit + "' in their name.")
       if WINDOWS:
-        process_image = processname_killed_atexit if '.exe' in processname_killed_atexit else (processname_killed_atexit + '.exe')
+        process_image = (processname_killed_atexit
+                         if '.exe' in processname_killed_atexit else
+                         f'{processname_killed_atexit}.exe')
         process = subprocess.Popen(['taskkill', '/F', '/IM', process_image, '/T'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         process.communicate()
       else:
@@ -450,7 +449,7 @@ def detect_browser_processes():
 
   current_browser_processes = [p for p in running_browser_processes if not pid_existed(p['pid'])]
 
-  if len(current_browser_processes) == 0:
+  if not current_browser_processes:
     logv('Was unable to detect the browser process that was spawned by emrun. This may occur if the target page was opened in a tab on a browser process that already existed before emrun started up.')
 
 
@@ -473,15 +472,14 @@ class HTTPWebServer(socketserver.ThreadingMixIn, HTTPServer):
     with http_mutex:
       have_received_messages = True
 
-      if seq_num == -1:
+      if (seq_num == -1 or seq_num != self.expected_http_seq_num
+          and seq_num < self.expected_http_seq_num):
         # Message arrived without a sequence number? Just log immediately
         log(data)
       elif seq_num == self.expected_http_seq_num:
         log(data)
         self.expected_http_seq_num += 1
         self.print_messages_due()
-      elif seq_num < self.expected_http_seq_num:
-        log(data)
       else:
         self.http_message_queue += [(seq_num, data, log)]
         self.http_message_queue.sort(key=itemgetter(0))
@@ -550,7 +548,9 @@ class HTTPWebServer(socketserver.ThreadingMixIn, HTTPServer):
       time_since_message = now - last_message_time
       if emrun_options.silence_timeout != 0 and time_since_message > emrun_options.silence_timeout:
         self.shutdown()
-        logi('No activity in ' + str(emrun_options.silence_timeout) + ' seconds. Quitting web server with return code ' + str(emrun_options.timeout_returncode) + '. (--silence_timeout option)')
+        logi(
+            f'No activity in {str(emrun_options.silence_timeout)} seconds. Quitting web server with return code {str(emrun_options.timeout_returncode)}. (--silence_timeout option)'
+        )
         page_exit_code = emrun_options.timeout_returncode
         emrun_options.kill_exit = True
 
@@ -558,7 +558,9 @@ class HTTPWebServer(socketserver.ThreadingMixIn, HTTPServer):
       time_since_start = now - page_start_time
       if emrun_options.timeout != 0 and time_since_start > emrun_options.timeout:
         self.shutdown()
-        logi('Page has not finished in ' + str(emrun_options.timeout) + ' seconds. Quitting web server with return code ' + str(emrun_options.timeout_returncode) + '. (--timeout option)')
+        logi(
+            f'Page has not finished in {str(emrun_options.timeout)} seconds. Quitting web server with return code {str(emrun_options.timeout_returncode)}. (--timeout option)'
+        )
         emrun_options.kill_exit = True
         page_exit_code = emrun_options.timeout_returncode
 
@@ -606,7 +608,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
     if os.path.isdir(path):
       if not self.path.endswith('/'):
         self.send_response(301)
-        self.send_header("Location", self.path + "/")
+        self.send_header("Location", f"{self.path}/")
         self.end_headers()
         return None
       for index in "index.html", "index.htm":
@@ -621,7 +623,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
     try:
       f = open(path, 'rb')
     except IOError:
-      self.send_error(404, "File not found: " + path)
+      self.send_error(404, f"File not found: {path}")
       return None
 
     self.send_response(200)
@@ -638,7 +640,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
     # To work around, one can use the suffix .gzip instead.
     if 'Accept-Encoding' in self.headers and 'gzip' in self.headers['Accept-Encoding'] and path.lower().endswith('gz'):
       self.send_header('Content-Encoding', 'gzip')
-      logv('Serving ' + path + ' as gzip-compressed.')
+      logv(f'Serving {path} as gzip-compressed.')
       guess_file_type = guess_file_type[:-2]
       if guess_file_type.endswith('.'):
         guess_file_type = guess_file_type[:-1]
@@ -693,7 +695,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
       filename = os.path.join(dump_out_directory, os.path.normpath(filename))
       with open(filename, 'wb') as fh:
         fh.write(data)
-      logi('Wrote ' + str(len(data)) + ' bytes to file "' + filename + '".')
+      logi(f'Wrote {len(data)}' + ' bytes to file "' + filename + '".')
       have_received_messages = True
     elif path == '/system_info':
       system_info = json.loads(get_system_info(format_json=True))
@@ -722,7 +724,9 @@ class HTTPHandler(SimpleHTTPRequestHandler):
       elif data.startswith('^exit^'):
         if not emrun_options.serve_after_exit:
           page_exit_code = int(data[6:])
-          logv('Web page has quit with a call to exit() with return code ' + str(page_exit_code) + '. Shutting down web server. Pass --serve_after_exit to keep serving even after the page terminates with exit().')
+          logv(
+              f'Web page has quit with a call to exit() with return code {page_exit_code}. Shutting down web server. Pass --serve_after_exit to keep serving even after the page terminates with exit().'
+          )
           self.server.shutdown()
           return
       else:
@@ -776,7 +780,7 @@ def get_cpu_info():
       from win32com.client import GetObject
       root_winmgmts = GetObject('winmgmts:root\\cimv2')
       cpus = root_winmgmts.ExecQuery('Select * from Win32_Processor')
-      cpu_name = cpus[0].Name + ', ' + platform.processor()
+      cpu_name = f'{cpus[0].Name}, {platform.processor()}'
       physical_cores = int(check_output(['wmic', 'cpu', 'get', 'NumberOfCores']).split('\n')[1].strip())
       logical_cores = int(check_output(['wmic', 'cpu', 'get', 'NumberOfLogicalProcessors']).split('\n')[1].strip())
       frequency = int(check_output(['wmic', 'cpu', 'get', 'MaxClockSpeed']).split('\n')[1].strip())
@@ -791,10 +795,12 @@ def get_cpu_info():
         if 'model name' in line:
           cpu_name = re.sub('.*model name.*:', '', line, 1).strip()
       lscpu = check_output(['lscpu'])
-      frequency = int(float(re.search('CPU MHz: (.*)', lscpu).group(1).strip()) + 0.5)
-      sockets = int(re.search(r'Socket\(s\): (.*)', lscpu).group(1).strip())
-      physical_cores = sockets * int(re.search(r'Core\(s\) per socket: (.*)', lscpu).group(1).strip())
-      logical_cores = physical_cores * int(re.search(r'Thread\(s\) per core: (.*)', lscpu).group(1).strip())
+      frequency = int(float(re.search('CPU MHz: (.*)', lscpu)[1].strip()) + 0.5)
+      sockets = int(re.search(r'Socket\(s\): (.*)', lscpu)[1].strip())
+      physical_cores = sockets * int(
+          re.search(r'Core\(s\) per socket: (.*)', lscpu)[1].strip())
+      logical_cores = physical_cores * int(
+          re.search(r'Thread\(s\) per core: (.*)', lscpu)[1].strip())
   except Exception as e:
     import traceback
     loge(traceback.format_exc())
@@ -804,11 +810,12 @@ def get_cpu_info():
             'frequency': 0
             }
 
-  return {'model': platform.machine() + ', ' + cpu_name,
-          'physicalCores': physical_cores,
-          'logicalCores': logical_cores,
-          'frequency': frequency
-          }
+  return {
+      'model': f'{platform.machine()}, {cpu_name}',
+      'physicalCores': physical_cores,
+      'logicalCores': logical_cores,
+      'frequency': frequency,
+  }
 
 
 def get_android_cpu_infoline():
@@ -822,7 +829,7 @@ def get_android_cpu_infoline():
       hardware = line[line.find(':') + 1:].strip()
 
   freq = int(check_output([ADB, 'shell', 'cat', '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq']).strip()) // 1000
-  return 'CPU: ' + processor + ', ' + hardware + ' @ ' + str(freq) + ' MHz'
+  return f'CPU: {processor}, {hardware} @ {str(freq)} MHz'
 
 
 def win_get_gpu_info():
@@ -834,7 +841,7 @@ def win_get_gpu_info():
         return gpu
     return None
 
-  for i in range(0, 16):
+  for i in range(16):
     try:
       hHardwareReg = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 'HARDWARE')
       hDeviceMapReg = winreg.OpenKey(hHardwareReg, 'DEVICEMAP')
@@ -855,13 +862,13 @@ def win_get_gpu_info():
 
       try:
         driverVersion = winreg.QueryValueEx(hVideoCardReg, 'DriverVersion')[0]
-        VideoCardDescription += ', driver version ' + driverVersion
+        VideoCardDescription += f', driver version {driverVersion}'
       except WindowsError:
         pass
 
       try:
         driverDate = winreg.QueryValueEx(hVideoCardReg, 'DriverDate')[0]
-        VideoCardDescription += ' (' + driverDate + ')'
+        VideoCardDescription += f' ({driverDate})'
       except WindowsError:
         pass
 
@@ -888,29 +895,29 @@ def linux_get_gpu_info():
         gl_version = line[len("OpenGL version string:"):].strip()
       if "OpenGL renderer string:" in line:
         gl_renderer = line[len("OpenGL renderer string:"):].strip()
-    glinfo = gl_vendor + ' ' + gl_renderer + ', GL version ' + gl_version
+    glinfo = f'{gl_vendor} {gl_renderer}, GL version {gl_version}'
   except Exception as e:
     logv(e)
 
   adapterinfo = ''
   try:
     vgainfo = check_output(['lshw', '-C', 'display'], stderr=subprocess.PIPE)
-    vendor = re.search("vendor: (.*)", vgainfo).group(1).strip()
-    product = re.search("product: (.*)", vgainfo).group(1).strip()
-    description = re.search("description: (.*)", vgainfo).group(1).strip()
-    clock = re.search("clock: (.*)", vgainfo).group(1).strip()
-    adapterinfo = vendor + ' ' + product + ', ' + description + ' (' + clock + ')'
+    vendor = re.search("vendor: (.*)", vgainfo)[1].strip()
+    product = re.search("product: (.*)", vgainfo)[1].strip()
+    description = re.search("description: (.*)", vgainfo)[1].strip()
+    clock = re.search("clock: (.*)", vgainfo)[1].strip()
+    adapterinfo = f'{vendor} {product}, {description} ({clock})'
   except Exception as e:
     logv(e)
 
   ram = 0
   try:
     vgainfo = check_output('lspci -v -s $(lspci | grep VGA | cut -d " " -f 1)', shell=True, stderr=subprocess.PIPE)
-    ram = int(re.search(r"\[size=([0-9]*)M\]", vgainfo).group(1)) * 1024 * 1024
+    ram = int(re.search(r"\[size=([0-9]*)M\]", vgainfo)[1]) * 1024 * 1024
   except Exception as e:
     logv(e)
 
-  model = (adapterinfo + ' ' + glinfo).strip()
+  model = f'{adapterinfo} {glinfo}'.strip()
   if not model:
     model = 'Unknown'
   return [{'model': model, 'ram': ram}]
@@ -923,9 +930,9 @@ def macos_get_gpu_info():
     info = info.split("Chipset Model:")[1:]
     for gpu in info:
       model_name = gpu.split('\n')[0].strip()
-      bus = re.search("Bus: (.*)", gpu).group(1).strip()
-      memory = int(re.search("VRAM (.*?): (.*) MB", gpu).group(2).strip())
-      gpus += [{'model': model_name + ' (' + bus + ')', 'ram': memory * 1024 * 1024}]
+      bus = re.search("Bus: (.*)", gpu)[1].strip()
+      memory = int(re.search("VRAM (.*?): (.*) MB", gpu)[2].strip())
+      gpus += [{'model': f'{model_name} ({bus})', 'ram': memory * 1024 * 1024}]
     return gpus
   except Exception:
     pass
@@ -952,7 +959,7 @@ def get_executable_version(filename):
       version = win32api.HIWORD(ms), win32api.LOWORD(ms), win32api.HIWORD(ls), win32api.LOWORD(ls)
       return '.'.join(map(str, version))
     elif MACOS:
-      plistfile = filename[0:filename.find('MacOS')] + 'Info.plist'
+      plistfile = filename[:filename.find('MacOS')] + 'Info.plist'
       info = plistlib.readPlist(plistfile)
       # Data in Info.plists is a bit odd, this check combo gives best information on each browser.
       if 'firefox' in filename.lower():
@@ -976,7 +983,7 @@ def get_executable_version(filename):
 def get_browser_build_date(filename):
   try:
     if MACOS:
-      plistfile = filename[0:filename.find('MacOS')] + 'Info.plist'
+      plistfile = filename[:filename.find('MacOS')] + 'Info.plist'
       info = plistlib.readPlist(plistfile)
       # Data in Info.plists is a bit odd, this check combo gives best information on each browser.
       if 'firefox' in filename.lower():
@@ -1002,7 +1009,7 @@ def get_browser_info(filename, format_json):
       'buildDate': get_browser_build_date(filename)
     }, indent=2)
   else:
-    return 'Browser: ' + browser_display_name(filename) + ' ' + get_executable_version(filename) + ', build ' + get_browser_build_date(filename)
+    return f'Browser: {browser_display_name(filename)} {get_executable_version(filename)}, build {get_browser_build_date(filename)}'
 
 
 # http://stackoverflow.com/questions/580924/python-windows-file-version-attribute
@@ -1012,17 +1019,21 @@ def win_get_file_properties(fname):
                'FileDescription', 'LegalTrademarks', 'PrivateBuild',
                'FileVersion', 'OriginalFilename', 'SpecialBuild')
 
-  props = {'FixedFileInfo': None, 'StringFileInfo': None, 'FileVersion': None}
-
   import win32api
   # backslash as parm returns dictionary of numeric info corresponding to VS_FIXEDFILEINFO struc
   fixedInfo = win32api.GetFileVersionInfo(fname, '\\')
-  props['FixedFileInfo'] = fixedInfo
-  props['FileVersion'] = "%d.%d.%d.%d" % (fixedInfo['FileVersionMS'] / 65536,
-                                          fixedInfo['FileVersionMS'] % 65536,
-                                          fixedInfo['FileVersionLS'] / 65536,
-                                          fixedInfo['FileVersionLS'] % 65536)
-
+  props = {
+      'StringFileInfo':
+      None,
+      'FixedFileInfo':
+      fixedInfo,
+      'FileVersion': ("%d.%d.%d.%d" % (
+          fixedInfo['FileVersionMS'] / 65536,
+          fixedInfo['FileVersionMS'] % 65536,
+          fixedInfo['FileVersionLS'] / 65536,
+          fixedInfo['FileVersionLS'] % 65536,
+      )),
+  }
   # \VarFileInfo\Translation returns list of available (language, codepage)
   # pairs that can be used to retreive string info. We are using only the first pair.
   lang, codepage = win32api.GetFileVersionInfo(fname, '\\VarFileInfo\\Translation')[0]
@@ -1055,27 +1066,27 @@ def get_computer_model():
         # http://apple.stackexchange.com/questions/98080/can-a-macs-model-year-be-determined-via-terminal-command
         serial = check_output(['system_profiler', 'SPHardwareDataType'])
         serial = re.search("Serial Number (.*): (.*)", serial)
-        serial = serial.group(2).strip()[-4:]
-        cmd = ['curl', '-s', 'http://support-sp.apple.com/sp/product?cc=' + serial]
+        serial = serial[2].strip()[-4:]
+        cmd = ['curl', '-s', f'http://support-sp.apple.com/sp/product?cc={serial}']
         logv(str(cmd))
         model = check_output(cmd)
         model = re.search('<configCode>(.*)</configCode>', model)
-        model = model.group(1).strip()
+        model = model[1].strip()
         with open(os.path.join(os.getenv("HOME"), '.emrun.hwmodel.cached'), 'w') as fh:
           fh.write(model) # Cache the hardware model to disk
         return model
       except Exception:
         hwmodel = check_output(['sysctl', 'hw.model'])
-        hwmodel = re.search('hw.model: (.*)', hwmodel).group(1).strip()
+        hwmodel = re.search('hw.model: (.*)', hwmodel)[1].strip()
         return hwmodel
     elif WINDOWS:
       manufacturer = check_output(['wmic', 'baseboard', 'get', 'manufacturer']).split('\n')[1].strip()
       version = check_output(['wmic', 'baseboard', 'get', 'version']).split('\n')[1].strip()
       product = check_output(['wmic', 'baseboard', 'get', 'product']).split('\n')[1].strip()
       if 'Apple' in manufacturer:
-        return manufacturer + ' ' + version + ', ' + product
+        return f'{manufacturer} {version}, {product}'
       else:
-        return manufacturer + ' ' + product + ', ' + version
+        return f'{manufacturer} {product}, {version}'
     elif LINUX:
       board_vendor = check_output(['cat', '/sys/devices/virtual/dmi/id/board_vendor']).strip()
       board_name = check_output(['cat', '/sys/devices/virtual/dmi/id/board_name']).strip()
@@ -1084,7 +1095,7 @@ def get_computer_model():
       bios_vendor = check_output(['cat', '/sys/devices/virtual/dmi/id/bios_vendor']).strip()
       bios_version = check_output(['cat', '/sys/devices/virtual/dmi/id/bios_version']).strip()
       bios_date = check_output(['cat', '/sys/devices/virtual/dmi/id/bios_date']).strip()
-      return board_vendor + ' ' + board_name + ' ' + board_version + ', ' + bios_vendor + ' ' + bios_version + ' (' + bios_date + ')'
+      return f'{board_vendor} {board_name} {board_version}, {bios_vendor} {bios_version} ({bios_date})'
   except Exception as e:
     logv(str(e))
   return 'Generic'
@@ -1104,7 +1115,7 @@ def get_os_version():
         pass
       return productName[0] + version + bitness
     elif MACOS:
-      return 'macOS ' + platform.mac_ver()[0] + bitness
+      return f'macOS {platform.mac_ver()[0]}{bitness}'
     elif LINUX:
       kernel_version = check_output(['uname', '-r']).strip()
       return ' '.join(platform.linux_distribution()) + ', linux kernel ' + kernel_version + ' ' + platform.architecture()[0] + bitness
@@ -1118,9 +1129,8 @@ def get_system_memory():
       if emrun_options.android:
         lines = check_output([ADB, 'shell', 'cat', '/proc/meminfo']).split('\n')
       else:
-        mem = open('/proc/meminfo', 'r')
-        lines = mem.readlines()
-        mem.close()
+        with open('/proc/meminfo', 'r') as mem:
+          lines = mem.readlines()
       for i in lines:
         sline = i.split()
         if str(sline[0]) == 'MemTotal:':

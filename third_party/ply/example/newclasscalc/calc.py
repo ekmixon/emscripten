@@ -33,11 +33,12 @@ class Parser(object):
         self.debug = kw.get('debug', 0)
         self.names = { }
         try:
-            modname = os.path.split(os.path.splitext(__file__)[0])[1] + "_" + self.__class__.__name__
+            modname = f"{os.path.split(os.path.splitext(__file__)[0])[1]}_{self.__class__.__name__}"
+
         except:
             modname = "parser"+"_"+self.__class__.__name__
-        self.debugfile = modname + ".dbg"
-        self.tabmodule = modname + "_" + "parsetab"
+        self.debugfile = f"{modname}.dbg"
+        self.tabmodule = f"{modname}_parsetab"
         #print self.debugfile, self.tabmodule
 
         # Build the lexer and parser
@@ -82,7 +83,7 @@ class Calc(Parser):
         try:
             t.value = int(t.value)
         except ValueError:
-            print("Integer value too large %s" % t.value)
+            print(f"Integer value too large {t.value}")
             t.value = 0
         #print "parsed number %s" % repr(t.value)
         return t

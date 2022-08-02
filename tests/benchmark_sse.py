@@ -132,7 +132,7 @@ def run_benchmark(benchmark_file, results_file, build_args):
     total_time_html_scalar = 0
     total_time_html_simd = 0
 
-    for chart_name in charts_native.keys():
+    for chart_name in charts_native:
         # Extract data for each chart.
         categories = []
         nativeScalarResults = []
@@ -153,7 +153,8 @@ def run_benchmark(benchmark_file, results_file, build_args):
             nativeSimdResults += [str(nsi)]
             html_result = find_result_in_category(wasm_results, result['category'])
             textual_results_native += 'Native ' + result['category'] + ': ' + "{:10.4f}".format(nsc) + 'ns -> ' + "{:10.4f}".format(nsi) + 'ns. '
-            textual_results_native += 'Native SSE is ' + format_comparison(nsi, nsc) + ' than native scalar. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
+            textual_results_native += f'Native SSE is {format_comparison(nsi, nsc)} than native scalar. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
+
 
             if html_result is not None:
                 hsc = html_result['scalar']
@@ -161,7 +162,8 @@ def run_benchmark(benchmark_file, results_file, build_args):
                 hsi = html_result['simd']
                 htmlSimdResults += [str(hsi)]
                 textual_results_html += 'JS ' + result['category'] + ': ' + "{:10.4f}".format(hsc) + 'ns -> ' + "{:10.4f}".format(hsi) + 'ns. '
-                textual_results_html += 'JS SSE is ' + format_comparison(hsi, hsc) + ' than JS scalar. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
+                textual_results_html += f'JS SSE is {format_comparison(hsi, hsc)} than JS scalar. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
+
                 textual_results_html2 += 'JS ' + result['category'] + ': JS scalar is ' + format_comparison(hsc, nsc) + ' than native scalar. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
                 textual_results_html3 += 'JS ' + result['category'] + ': JS SSE is ' + format_comparison(hsi, nsi) + ' than native SSE. &nbsp; &nbsp; &nbsp; &nbsp; <br />'
                 total_time_native_scalar += nsc
@@ -286,7 +288,7 @@ def run_benchmark(benchmark_file, results_file, build_args):
     html += '</body></html>'
 
     open(results_file, 'w').write(html)
-    print('Wrote ' + str(len(html)) + ' bytes to file ' + results_file + '.')
+    print(f'Wrote {len(html)} bytes to file {results_file}.')
 
 
 if __name__ == '__main__':
